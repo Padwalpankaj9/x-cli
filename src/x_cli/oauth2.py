@@ -23,7 +23,14 @@ import httpx
 
 AUTHORIZE_URL = "https://x.com/i/oauth2/authorize"
 TOKEN_URL = "https://api.x.com/2/oauth2/token"
-DEFAULT_SCOPES = ["tweet.read", "users.read", "bookmark.read", "bookmark.write", "offline.access"]
+DEFAULT_SCOPES = [
+    "tweet.read",
+    "users.read",
+    "bookmark.read",
+    "bookmark.write",
+    "like.read",
+    "offline.access",
+]
 TOKEN_PATH = Path.home() / ".config" / "x-cli" / "oauth2_tokens.json"
 
 

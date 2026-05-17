@@ -274,6 +274,18 @@ def me_unbookmark(state, id_or_url):
     state.output(data, "Unbookmarked")
 
 
+@me.command("likes")
+@click.option("--max", "max_results", default=10, type=int, help="Max results (5-100)")
+@pass_state
+def me_likes(state, max_results):
+    """Fetch your liked tweets."""
+    try:
+        data = state.client.get_liked_tweets(max_results)
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
+    state.output(data, "Likes")
+
+
 # ============================================================
 # quick actions (top-level)
 # ============================================================

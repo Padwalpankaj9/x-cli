@@ -1,5 +1,6 @@
 """Tests for x_cli.api."""
 
+from x_cli import oauth2
 from x_cli.api import XApiClient
 from x_cli.auth import Credentials
 
@@ -88,3 +89,56 @@ def test_paginated_archive_search_merges_pages_and_includes():
     assert data["meta"]["result_count"] == 3
     assert data["meta"]["pages"] == 2
     assert client._http.calls[1]["params"]["next_token"] == "next"
+
+
+def test_get_liked_tweets_uses_oauth2_user_context_and_clamps_max(monkeypatch):
+    client = make_client([])
+    captured = {}
+
+    monkeypatch.setattr(oauth2, "load_tokens", lambda: {"scope": "tweet.read users.read like.read"})
+    client.get_authenticated_user_id = lambda: "123"  # type: ignore[method-assign]
+
+    def fake_oauth2_request(method, url, json_body=None):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json_body"] = json_body
+        return {"data": []}
+
+    client._oauth2_request = fake_oauth2_request  # type: ignore[method-assign]
+
+    client.get_liked_tweets(1_000)
+
+    assert captured["method"] == "GET"
+    assert captured["json_body"] is None
+    assert captured["url"].startswith("https://api.x.com/2/users/123/liked_tweets?")
+    assert "max_results=100" in captured["url"]
+
+
+def test_get_liked_tweets_minimum_max_is_five(monkeypatch):
+    client = make_client([])
+    captured = {}
+
+    monkeypatch.setattr(oauth2, "load_tokens", lambda: {"scope": "tweet.read users.read like.read"})
+    client.get_authenticated_user_id = lambda: "123"  # type: ignore[method-assign]
+
+    def fake_oauth2_request(method, url, json_body=None):
+        captured["url"] = url
+        return {"data": []}
+
+    client._oauth2_request = fake_oauth2_request  # type: ignore[method-assign]
+
+    client.get_liked_tweets(1)
+
+    assert "max_results=5" in captured["url"]
+
+
+def test_get_liked_tweets_requires_like_read_scope(monkeypatch):
+    client = make_client([])
+    monkeypatch.setattr(oauth2, "load_tokens", lambda: {"scope": "tweet.read users.read"})
+
+    try:
+        client.get_liked_tweets()
+    except RuntimeError as exc:
+        assert "missing like.read" in str(exc)
+    else:
+        raise AssertionError("expected missing like.read error")

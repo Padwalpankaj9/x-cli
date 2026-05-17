@@ -343,3 +343,26 @@ class XApiClient:
     def unbookmark_tweet(self, tweet_id: str) -> dict[str, Any]:
         user_id = self.get_authenticated_user_id()
         return self._oauth2_request("DELETE", f"{API_BASE}/users/{user_id}/bookmarks/{tweet_id}")
+
+    # ---- likes lookup (requires OAuth 2.0 User Context) ----
+
+    def get_liked_tweets(self, max_results: int = 10) -> dict[str, Any]:
+        tokens = oauth2.load_tokens()
+        scopes = set((tokens or {}).get("scope", "").split())
+        if "like.read" not in scopes:
+            raise RuntimeError(
+                "OAuth 2.0 token is missing like.read. Run: "
+                "x-cli auth login --scopes tweet.read,users.read,bookmark.read,bookmark.write,like.read,offline.access"
+            )
+        user_id = self.get_authenticated_user_id()
+        max_results = max(5, min(max_results, 100))
+        params = {
+            "max_results": str(max_results),
+            "tweet.fields": "created_at,public_metrics,author_id,conversation_id,entities,lang,note_tweet",
+            "expansions": "author_id,attachments.media_keys",
+            "user.fields": "name,username,verified,profile_image_url",
+            "media.fields": "url,preview_image_url,type",
+        }
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        url = f"{API_BASE}/users/{user_id}/liked_tweets?{qs}"
+        return self._oauth2_request("GET", url)

@@ -15,7 +15,7 @@ Uses the same auth credentials as [x-mcp](https://github.com/INFATOSHI/x-mcp). I
 | **Post** | `tweet post`, `tweet quote`, `tweet delete` | `x-cli tweet post "hello world"` | OK |
 | **Read** | `tweet get`, `tweet search`, `user timeline`, `me mentions` | `x-cli tweet search "from:elonmusk"` | OK |
 | **Users** | `user get`, `user followers`, `user following` | `x-cli user get openai` | OK |
-| **Engage** | `retweet` | `x-cli retweet <tweet-url>` | OK |
+| **Engage** | `retweet`, `me likes` | `x-cli me likes --max 20` | OK |
 | **Bookmarks** | `me bookmarks`, `me bookmark`, `me unbookmark` | `x-cli me bookmarks --max 20` | Requires Basic+ tier |
 | **Analytics** | `tweet metrics` | `x-cli tweet metrics <tweet-id>` | OK |
 | **Reply** | `tweet reply` | `x-cli tweet reply <url> "text"` | Restricted (see below) |
@@ -111,6 +111,7 @@ x-cli me mentions --max 20
 x-cli me bookmarks
 x-cli me bookmark <id-or-url>
 x-cli me unbookmark <id-or-url>
+x-cli me likes --max 20
 ```
 
 ### Quick actions
@@ -165,6 +166,13 @@ Free tier: 500 posts/month. Basic: 10,000/month. Pro: 1,000,000/month.
 ---
 
 ## Troubleshooting
+
+### `me likes` says the OAuth 2.0 token is missing `like.read`
+Your stored OAuth2 token was created before likes lookup support existed. Re-run:
+
+```bash
+x-cli auth login --scopes tweet.read,users.read,bookmark.read,bookmark.write,like.read,offline.access
+```
 
 ### 403 "oauth1-permissions" when posting
 Your Access Token was generated before you enabled write permissions. Go to the X Developer Portal, set App permissions to "Read and write", then **Regenerate** your Access Token and Secret.
