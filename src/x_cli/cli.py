@@ -34,7 +34,7 @@ class State:
 pass_state = click.make_pass_decorator(State)
 
 
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option("--json", "-j", "fmt", flag_value="json", help="JSON output")
 @click.option("--plain", "-p", "fmt", flag_value="plain", help="TSV output for piping")
 @click.option("--markdown", "-md", "fmt", flag_value="markdown", help="Markdown output")
