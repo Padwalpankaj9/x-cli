@@ -11,6 +11,7 @@ from . import oauth2
 from .api import XApiClient
 from .auth import load_credentials
 from .formatters import format_output
+from .media import pair_alts
 from .utils import parse_tweet_id, strip_at
 
 
@@ -32,6 +33,16 @@ class State:
 
 
 pass_state = click.make_pass_decorator(State)
+
+
+def _upload_paths(client: XApiClient, media: tuple[str, ...] | list[str] | None, alt: tuple[str, ...] | list[str] | None) -> list[str] | None:
+    """Upload --media files (with optional --alt) and return media_ids."""
+    if not media:
+        return None
+    paths = list(media)
+    alts = pair_alts(paths, list(alt) if alt else None)
+    return client.upload_media_paths(paths, alts=alts)
+
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -59,11 +70,25 @@ def tweet():
 @click.argument("text")
 @click.option("--poll", default=None, help="Comma-separated poll options")
 @click.option("--poll-duration", default=1440, type=int, help="Poll duration in minutes")
+@click.option("--media", "media", multiple=True, type=click.Path(exists=True, dir_okay=False),
+              help="Image/GIF/video file to attach (repeat up to 4 images, or one GIF/video)")
+@click.option("--alt", "alt", multiple=True, help="Alt text for --media files, in the same order")
 @pass_state
-def tweet_post(state, text, poll, poll_duration):
-    """Post a tweet."""
+def tweet_post(state, text, poll, poll_duration, media, alt):
+    """Post a tweet (text, optional poll, optional media)."""
+    if poll and media:
+        raise click.ClickException("Cannot use --poll and --media together.")
     poll_options = [o.strip() for o in poll.split(",")] if poll else None
-    data = state.client.post_tweet(text, poll_options=poll_options, poll_duration_minutes=poll_duration)
+    try:
+        media_ids = _upload_paths(state.client, media, alt)
+        data = state.client.post_tweet(
+            text,
+            poll_options=poll_options,
+            poll_duration_minutes=poll_duration,
+            media_ids=media_ids,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     state.output(data, "Posted")
 
 
@@ -90,8 +115,11 @@ def tweet_delete(state, id_or_url):
 @tweet.command("reply")
 @click.argument("id_or_url")
 @click.argument("text")
+@click.option("--media", "media", multiple=True, type=click.Path(exists=True, dir_okay=False),
+              help="Media file(s) to attach")
+@click.option("--alt", "alt", multiple=True, help="Alt text for --media files, in the same order")
 @pass_state
-def tweet_reply(state, id_or_url, text):
+def tweet_reply(state, id_or_url, text, media, alt):
     """Reply to a tweet.
 
     NOTE: As of Feb 2026, X restricts programmatic replies on all self-serve
@@ -106,18 +134,29 @@ def tweet_reply(state, id_or_url, text):
         "original author @mentioned you or quoted your post. Enterprise is exempt.",
         err=True,
     )
-    data = state.client.post_tweet(text, reply_to=tid)
+    try:
+        media_ids = _upload_paths(state.client, media, alt)
+        data = state.client.post_tweet(text, reply_to=tid, media_ids=media_ids)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     state.output(data, "Reply")
 
 
 @tweet.command("quote")
 @click.argument("id_or_url")
 @click.argument("text")
+@click.option("--media", "media", multiple=True, type=click.Path(exists=True, dir_okay=False),
+              help="Media file(s) to attach")
+@click.option("--alt", "alt", multiple=True, help="Alt text for --media files, in the same order")
 @pass_state
-def tweet_quote(state, id_or_url, text):
+def tweet_quote(state, id_or_url, text, media, alt):
     """Quote tweet."""
     tid = parse_tweet_id(id_or_url)
-    data = state.client.post_tweet(text, quote_tweet_id=tid)
+    try:
+        media_ids = _upload_paths(state.client, media, alt)
+        data = state.client.post_tweet(text, quote_tweet_id=tid, media_ids=media_ids)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     state.output(data, "Quote")
 
 
@@ -169,6 +208,40 @@ def tweet_metrics(state, id_or_url):
     data = state.client.get_tweet_metrics(tid)
     state.output(data, f"Metrics {tid}")
 
+
+
+# ============================================================
+# media
+# ============================================================
+
+@cli.group()
+def media():
+    """Upload media for posts (images, GIF, video)."""
+
+
+@media.command("upload")
+@click.argument("file_path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--alt", default=None, help="Alt text (up to 1000 chars)")
+@click.option(
+    "--category",
+    default=None,
+    type=click.Choice(["tweet_image", "tweet_gif", "tweet_video"], case_sensitive=True),
+    help="Override media category (default: guessed from file type)",
+)
+@click.option("--no-wait", is_flag=True, help="Do not poll STATUS for video/GIF processing")
+@pass_state
+def media_upload(state, file_path, alt, category, no_wait):
+    """Upload a file and print its media_id (does not create a post)."""
+    try:
+        result = state.client.upload_media_file(
+            file_path,
+            alt_text=alt,
+            category=category,
+            wait=not no_wait,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    state.output(result, "Uploaded")
 
 # ============================================================
 # user

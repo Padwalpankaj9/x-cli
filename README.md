@@ -80,6 +80,9 @@ x-cli also checks for a `.env` in the current directory.
 
 ```bash
 x-cli tweet post "Hello world"
+x-cli tweet post "with photo" --media ./shot.png --alt "a photo"
+x-cli tweet post "with video" --media ./clip.mp4
+x-cli media upload ./shot.png --alt "a photo"
 x-cli tweet post --poll "Yes,No" "Do you like polls?"
 x-cli tweet get <id-or-url>
 x-cli tweet delete <id-or-url>
